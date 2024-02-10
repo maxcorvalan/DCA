@@ -15,7 +15,7 @@ const DcaSimulator = () => {
 
   const fetchData = async () => {
     try {
-      const response = await axios.get('http://www.buda.com/api/v2/markets/BTC-CLP/trades');
+      const response = await axios.get('https://www.buda.com/api/v2/markets/BTC-CLP/trades');
       const trades = response.data.data.trades.entries.map(entry => ({
         timestamp: parseInt(entry[0]),
         amount: parseFloat(entry[1]),
