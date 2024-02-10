@@ -11,7 +11,7 @@ const Table = ({ monthlyReturns }) => {
                 </tr>
             </thead>
             <tbody>
-                {monthlyReturns.map((monthlyReturn, index) => (
+                {monthlyReturns && monthlyReturns.map((monthlyReturn, index) => (
                     <tr key={index}>
                         <td>{monthlyReturn.month}</td>
                         <td>{monthlyReturn.profit ? monthlyReturn.profit.toFixed(2) : ''}</td>
