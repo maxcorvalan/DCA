@@ -1,100 +1,106 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import axios from 'axios';
-import Table from './Table';
 
 const DcaSimulator = () => {
   const [investmentAmount, setInvestmentAmount] = useState('');
-  const [startDate, setStartDate] = useState(null);
-  const [endDate, setEndDate] = useState(null);
   const [historicalData, setHistoricalData] = useState([]);
   const [results, setResults] = useState([]);
 
-  useEffect(() => {
-    fetchData();
-  }, []);
+  const handleInputChange = (event) => {
+    setInvestmentAmount(event.target.value);
+  };
 
   const fetchData = async () => {
     try {
-      const response = await axios.get('https://proxy-buda.onrender.com/api/trades'); // Cambiar la URL según la ruta de tu servidor Node.js
-      console.log('Data from API:', response.data); // Agregado para verificar datos recibidos
-      const trades = response.data.trades.entries.map(entry => ({
-        timestamp: parseInt(entry[0]),
-        amount: parseFloat(entry[1]),
-        price: parseFloat(entry[2]),
-        direction: entry[3]
-      }));
-      console.log('Trades:', trades); // Agregado para verificar datos procesados
-      setHistoricalData(trades);
+      const response = await axios.get('https://proxy-buda.onrender.com/api/markets/BTC-CLP/trades');
+      setHistoricalData(response.data.trades.entries);
     } catch (error) {
       console.error('Error fetching historical data:', error);
     }
   };
 
-  const calculateResults = () => {
-    if (!investmentAmount || !startDate || !endDate) {
-      console.error('Please enter all required fields.');
+  const calculateResults = async () => {
+    if (!investmentAmount || !historicalData || historicalData.length === 0) {
+      console.error('Please enter all required fields and fetch historical data.');
       return;
     }
 
-    const filteredData = historicalData.filter(entry => entry.timestamp >= startDate && entry.timestamp <= endDate);
-    console.log('Filtered data:', filteredData); // Agregado para verificar datos filtrados
     const monthlyInvestment = parseFloat(investmentAmount);
-    let totalInvested = 0;
-    let totalValue = 0;
-    let currentDate = startDate;
+    const currentDate = new Date();
+    const endDate = currentDate.getTime(); // Fecha actual
+    const startDate = new Date(currentDate.getFullYear() - 1, currentDate.getMonth(), 1, 12, 0, 0, 0).getTime(); // Hace un año
 
     const results = [];
+    let totalInvested = 0;
+    let totalValue = 0;
 
-    while (currentDate <= endDate) {
-      const filteredEntries = filteredData.filter(entry => entry.timestamp <= currentDate);
-      const averagePrice = filteredEntries.reduce((acc, curr) => acc + curr.price, 0) / filteredEntries.length;
-      const totalCoins = filteredEntries.reduce((acc, curr) => acc + curr.amount, 0);
-      const currentValue = totalCoins * averagePrice;
-      totalInvested += monthlyInvestment;
-      totalValue = totalCoins * averagePrice;
+    // Obtener transacciones para el primer día de cada mes durante el último año
+    for (let timestamp = startDate; timestamp <= endDate; timestamp = getNextMonthFirstDay(timestamp)) {
+      const dayOfMonth = new Date(timestamp).getDate();
+      if (dayOfMonth !== 1) continue; // Saltar si no es el primer día del mes
 
-      results.push({
-        date: currentDate,
-        totalInvested,
-        totalValue,
-        percentageChange: ((totalValue - totalInvested) / totalInvested) * 100
-      });
+      try {
+        // Consultar transacciones del mercado BTC-CLP para el primer día del mes a las 12:00 UTC
+        const response = await axios.get(`https://proxy-buda.onrender.com/api/markets/BTC-CLP/trades?timestamp=${timestamp}`);
+        const entries = response.data.trades.entries;
+        
+        // Filtrar transacciones para este mes
+        const filteredEntries = entries.filter(entry => isSameMonthYear(entry[0], timestamp));
+        
+        // Obtener el precio final del mes
+        const lastEntry = filteredEntries[filteredEntries.length - 1];
+        const finalPrice = parseFloat(lastEntry[2]);
 
-      const nextMonthDate = new Date(currentDate);
-      nextMonthDate.setMonth(nextMonthDate.getMonth() + 1);
-      currentDate = nextMonthDate.getTime();
+        // Calcular el valor total de la inversión este mes usando el precio final
+        const totalAmount = filteredEntries.reduce((total, entry) => total + parseFloat(entry[1]), 0);
+        const monthlyValue = totalAmount * finalPrice;
+
+        // Actualizar el total invertido y el valor total
+        totalInvested += monthlyInvestment;
+        totalValue += monthlyValue;
+
+        // Calcular la ganancia y el porcentaje de cambio
+        const monthlyProfit = totalValue - totalInvested;
+        const percentageChange = (monthlyProfit / totalInvested) * 100;
+
+        // Agregar resultados a la lista
+        results.push({
+          date: new Date(timestamp).toISOString().split('T')[0],
+          totalInvested: totalInvested.toFixed(2),
+          totalValue: totalValue.toFixed(2),
+          monthlyProfit: monthlyProfit.toFixed(2),
+          percentageChange: percentageChange.toFixed(2),
+        });
+      } catch (error) {
+        console.error('Error fetching data for timestamp:', timestamp, error);
+      }
     }
 
-    console.log('Results:', results); // Agregado para verificar resultados calculados
     setResults(results);
+  };
+
+  // Función para obtener el primer día del siguiente mes
+  const getNextMonthFirstDay = (timestamp) => {
+    const nextMonth = new Date(timestamp);
+    nextMonth.setUTCMonth(nextMonth.getUTCMonth() + 1);
+    nextMonth.setUTCDate(1);
+    nextMonth.setUTCHours(12, 0, 0, 0);
+    return nextMonth.getTime();
+  };
+
+  // Función para verificar si la fecha de la transacción está en el mismo mes y año
+  const isSameMonthYear = (timestamp1, timestamp2) => {
+    const date1 = new Date(parseInt(timestamp1));
+    const date2 = new Date(timestamp2);
+    return date1.getUTCMonth() === date2.getUTCMonth() && date1.getUTCFullYear() === date2.getUTCFullYear();
   };
 
   return (
     <div>
-      <h2>Dollar Cost Averaging (DCA) Simulator</h2>
-      <label htmlFor="investmentAmount">Monthly Investment Amount (CLP):</label>
-      <input
-        type="number"
-        id="investmentAmount"
-        value={investmentAmount}
-        onChange={(e) => setInvestmentAmount(e.target.value)}
-      />
-      <label htmlFor="startDate">Start Date:</label>
-      <input
-        type="date"
-        id="startDate"
-        value={startDate ? new Date(startDate).toISOString().split('T')[0] : ''}
-        onChange={(e) => setStartDate(new Date(e.target.value).getTime())}
-      />
-      <label htmlFor="endDate">End Date:</label>
-      <input
-        type="date"
-        id="endDate"
-        value={endDate ? new Date(endDate).toISOString().split('T')[0] : ''}
-        onChange={(e) => setEndDate(new Date(e.target.value).getTime())}
-      />
-      <button onClick={calculateResults}>Calculate</button>
-      {results.length > 0 && <Table data={results} />}
+      <h1>DCA Simulator</h1>
+      <InvestmentForm onFetchData={fetchData} onCalculateResults={calculateResults} />
+      <Chart monthlyReturns={results} />
+      <Table monthlyReturns={results} />
     </div>
   );
 };
