@@ -16,12 +16,14 @@ const DcaSimulator = () => {
   const fetchData = async () => {
     try {
       const response = await axios.get('https://proxy-buda.onrender.com/api/trades'); // Cambiar la URL según la ruta de tu servidor Node.js
+      console.log('Data from API:', response.data); // Agregado para verificar datos recibidos
       const trades = response.data.trades.entries.map(entry => ({
         timestamp: parseInt(entry[0]),
         amount: parseFloat(entry[1]),
         price: parseFloat(entry[2]),
         direction: entry[3]
       }));
+      console.log('Trades:', trades); // Agregado para verificar datos procesados
       setHistoricalData(trades);
     } catch (error) {
       console.error('Error fetching historical data:', error);
@@ -35,6 +37,7 @@ const DcaSimulator = () => {
     }
 
     const filteredData = historicalData.filter(entry => entry.timestamp >= startDate && entry.timestamp <= endDate);
+    console.log('Filtered data:', filteredData); // Agregado para verificar datos filtrados
     const monthlyInvestment = parseFloat(investmentAmount);
     let totalInvested = 0;
     let totalValue = 0;
@@ -62,6 +65,7 @@ const DcaSimulator = () => {
       currentDate = nextMonthDate.getTime();
     }
 
+    console.log('Results:', results); // Agregado para verificar resultados calculados
     setResults(results);
   };
 
@@ -96,4 +100,3 @@ const DcaSimulator = () => {
 };
 
 export default DcaSimulator;
-
